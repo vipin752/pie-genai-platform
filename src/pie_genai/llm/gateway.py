@@ -15,7 +15,7 @@ from dataclasses import replace
 
 from pie_genai.config import Settings
 from pie_genai.llm.providers.base import ModelProviderError, ModelRequest, ModelResponse
-from pie_genai.llm.providers.own_genai import OwnGenAiProvider
+from pie_genai.llm.providers.ollama import OllamaProvider
 from pie_genai.llm.registry import ModelRegistry, ModelSpec
 from pie_genai.llm.router import (
     TASK_COMPLEX_REASONING,
@@ -103,15 +103,19 @@ class LlmGateway:
 
 
 def build_default_registry(settings: Settings) -> ModelRegistry:
-    """The one model registered today: PIE Trader's own GenAI skeleton.
+    """The one model registered today: Ollama, a real self-hosted provider
+    (your own infrastructure, not a third-party vendor API) — the first
+    working default since OwnGenAiProvider (llm/providers/own_genai.py,
+    still a placeholder for a future custom in-house service) was added.
     context_window_tokens is 0 (unknown) rather than a plausible-looking
-    invented number — the real service doesn't exist yet to measure."""
-    own_genai = OwnGenAiProvider(settings.own_genai_endpoint, settings.own_genai_api_key)
+    invented number — model-specific context limits vary per Ollama model
+    and aren't hardcoded here."""
+    ollama = OllamaProvider(settings.ollama_base_url, settings.ollama_model, settings.ollama_timeout_s)
     return ModelRegistry(
         [
             ModelSpec(
                 name="pie-genai-core",
-                provider=own_genai,
+                provider=ollama,
                 task_types=frozenset(
                     {TASK_SIMPLE_CONVERSATION, TASK_COMPLEX_REASONING, TASK_STRUCTURED_EXTRACTION}
                 ),

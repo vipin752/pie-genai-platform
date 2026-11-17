@@ -20,9 +20,18 @@ class Settings(BaseSettings):
 
     # Own GenAI provider (server/ai equivalent on the pie-trader side uses
     # the same OwnGenAiProvider pattern — see llm/providers/own_genai.py).
-    # This is the default provider; blank means "not configured yet".
+    # Kept as a placeholder for a future custom in-house model/service,
+    # distinct from choosing a specific self-hosted inference engine below.
     own_genai_endpoint: str | None = None
     own_genai_api_key: str | None = None
+
+    # Ollama — a real, self-hosted inference engine (your own
+    # infrastructure, not a third-party vendor API) and this platform's
+    # default model provider. No API key: Ollama has none by default.
+    # See llm/providers/ollama.py.
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1"
+    ollama_timeout_s: float = 60.0
 
     # Persistence — not wired to a real database yet (see
     # docs/architecture/SYSTEM_ARCHITECTURE.md, Stage B status). Present so

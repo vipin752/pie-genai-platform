@@ -1,4 +1,6 @@
+import httpx
 import pytest
+import respx
 
 from pie_genai.config import Settings
 from pie_genai.llm.gateway import LlmGateway, build_default_gateway
@@ -38,9 +40,15 @@ def _registry_with(provider: ModelProvider, name: str = "test-model") -> ModelRe
     )
 
 
-async def test_default_gateway_fails_loudly_when_unconfigured():
-    settings = Settings(own_genai_endpoint=None, own_genai_api_key=None)
-    gateway = build_default_gateway(settings)
+@pytest.mark.respx(base_url="http://localhost:11434")
+async def test_default_gateway_fails_loudly_when_ollama_unreachable(respx_mock):
+    # The default provider is now Ollama (see gateway.py's build_default_registry) —
+    # a real adapter, not a skeleton. This sandbox has no Ollama running, so
+    # the honest, real failure mode is a connection error, not a fabricated
+    # response. Mocked with respx for determinism (a real Ollama install on
+    # a dev machine must not make this test flaky).
+    respx_mock.post("/api/chat").mock(side_effect=httpx.ConnectError("refused"))
+    gateway = build_default_gateway(Settings())
 
     with pytest.raises(ModelProviderError) as exc_info:
         await gateway.execute(
@@ -48,23 +56,28 @@ async def test_default_gateway_fails_loudly_when_unconfigured():
             ModelRequest(model="", system_instruction="", prompt="hello"),
         )
 
-    assert exc_info.value.retryable is False
-    assert "not configured yet" in str(exc_info.value)
+    assert exc_info.value.retryable is True  # Ollama starting up is worth a retry
+    assert "Could not reach Ollama" in str(exc_info.value)
     # The failure is still recorded, not silently dropped.
     assert gateway.usage.all()[-1].success is False
 
 
-async def test_default_gateway_still_fails_once_endpoint_set_but_unimplemented():
-    settings = Settings(own_genai_endpoint="https://example.invalid/genai", own_genai_api_key="x")
-    gateway = build_default_gateway(settings)
+@pytest.mark.respx(base_url="http://localhost:11434")
+async def test_default_gateway_reports_missing_model_as_non_retryable(respx_mock):
+    respx_mock.post("/api/chat").mock(
+        return_value=httpx.Response(404, text="model 'llama3.1' not found")
+    )
+    settings = Settings()
 
     with pytest.raises(ModelProviderError) as exc_info:
-        await gateway.execute(
+        await build_default_gateway(settings).execute(
             TASK_SIMPLE_CONVERSATION,
             ModelRequest(model="", system_instruction="", prompt="hello"),
         )
 
-    assert "not implemented yet" in str(exc_info.value)
+    # A missing model can't be fixed by retrying the same request.
+    assert exc_info.value.retryable is False
+    assert "404" in str(exc_info.value)
 
 
 async def test_retries_a_retryable_failure_then_succeeds():
