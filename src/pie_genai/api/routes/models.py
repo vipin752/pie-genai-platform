@@ -34,13 +34,13 @@ async def list_models(request: Request) -> list[dict]:
 
 @router.get("/health")
 async def models_health(request: Request) -> dict:
-    """Configuration status, not a live provider call — invoking an
-    unconfigured/unimplemented provider just to "check health" would
-    throw on every request. See /api/v1/models/usage's success_rate for
-    the real signal once calls are actually being made."""
+    """A real reachability probe per provider (see ModelProvider.health())
+    — for Ollama this is an actual GET /api/tags, not a guess. See
+    /api/v1/models/usage's success_rate for the real signal once calls
+    are actually being made."""
     gateway = _gateway(request)
     return {
-        m.name: {"provider": m.provider.provider_name, "configured": "skeleton" not in m.provider.provider_name.lower()}
+        m.name: {"provider": m.provider.provider_name, "reachable": await m.provider.health()}
         for m in gateway.registry.list()
     }
 

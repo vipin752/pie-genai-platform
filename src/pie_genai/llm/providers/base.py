@@ -46,3 +46,9 @@ class ModelProvider(ABC):
     @abstractmethod
     async def invoke(self, request: ModelRequest) -> ModelResponse:
         ...
+
+    async def health(self) -> bool:
+        """True if this provider is actually reachable right now. The
+        default (no real check) assumes reachable — override with a real,
+        cheap probe wherever one exists (see OllamaProvider.health())."""
+        return True

@@ -31,7 +31,10 @@ async def readiness(settings: Settings = Depends(get_settings)) -> ReadinessResp
     checks = {
         "database": "not_configured" if not settings.database_url else "unchecked",
         "redis": "not_configured" if not settings.redis_url else "unchecked",
-        "llm_gateway": "not_configured" if not settings.own_genai_endpoint else "unchecked",
+        # Ollama (the default provider) always has a base_url, so it's
+        # always "configured" in that sense — GET /api/v1/models/health
+        # is the real reachability check, not this one.
+        "llm_gateway": "unchecked",
     }
     overall = "ok" if all(v != "down" for v in checks.values()) else "degraded"
     return ReadinessResponse(status=overall, checks=checks)
@@ -46,10 +49,10 @@ async def version(settings: Settings = Depends(get_settings)) -> VersionResponse
 async def capabilities(settings: Settings = Depends(get_settings)) -> CapabilitiesResponse:
     return CapabilitiesResponse(
         # True = conversation/message/run lifecycle exists and is wired to
-        # the model gateway end to end. It does NOT mean a submitted
-        # message gets a real answer - the one configured model is an
-        # unimplemented skeleton, so every run fails today. See
-        # docs/architecture/SYSTEM_ARCHITECTURE.md.
+        # the model gateway end to end. A "general question" message now
+        # gets a REAL answer if Ollama is actually running and reachable;
+        # if not, the run fails honestly rather than fabricating a
+        # response. See docs/architecture/SYSTEM_ARCHITECTURE.md.
         conversations=True,
         # One real agent (Market Intelligence) exists, wired to 2 real
         # tools. "True" means the agent/tool framework is real and
@@ -64,5 +67,7 @@ async def capabilities(settings: Settings = Depends(get_settings)) -> Capabiliti
         # gateway is actually reachable right now — see
         # GET /api/v1/integrations/pie-trader/health for that.
         pie_trader_integration=True,
-        llm_gateway_configured=bool(settings.own_genai_endpoint),
+        # Ollama always has a base_url configured (sensible default) —
+        # GET /api/v1/models/health is the real reachability signal.
+        llm_gateway_configured=True,
     )

@@ -1,7 +1,8 @@
 """HTTP-level conversation/run lifecycle against the real default app -
-whose one configured model is an unimplemented skeleton, so every run
-here legitimately ends FAILED. test_orchestrator.py covers the COMPLETED
-path with a successful test-double model."""
+whose one configured model is the real Ollama provider, unreachable in
+this sandbox (no Ollama binary here), so every run here legitimately
+ends FAILED with an honest connection error. test_orchestrator.py covers
+the COMPLETED path with a successful test-double model."""
 
 from fastapi.testclient import TestClient
 
@@ -34,7 +35,7 @@ def test_full_lifecycle_create_submit_fetch_run_and_events():
     assert run_resp.status_code == 200
     run_body = run_resp.json()
     assert run_body["status"] == "failed"
-    assert "not configured yet" in run_body["error"]
+    assert "Could not reach Ollama" in run_body["error"]
 
     events_resp = client.get(f"/api/v1/runs/{run_id}/events")
     assert events_resp.status_code == 200

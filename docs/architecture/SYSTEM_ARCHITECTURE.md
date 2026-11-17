@@ -29,8 +29,9 @@ FUTURE PLAN, BLOCKED, NOT VERIFIED.
 | FastAPI application skeleton | IMPLEMENTED, TESTED | `src/pie_genai/api/app.py`, `tests/unit/test_system_routes.py` |
 | Health / readiness / version / capabilities APIs | IMPLEMENTED, TESTED | `src/pie_genai/api/routes/system.py` — 4/4 covered by tests |
 | Config loading (env-driven, no hardcoded secrets) | IMPLEMENTED, TESTED | `src/pie_genai/config.py` |
-| Provider-neutral model interface (`ModelProvider`) | IMPLEMENTED | `src/pie_genai/llm/providers/base.py` — only one concrete provider exists so far, so "provider-neutral" is a contract, not yet proven by a second real implementation |
-| Own-GenAI provider adapter | SCAFFOLD | `src/pie_genai/llm/providers/own_genai.py` — fails loudly by design; mirrors the same pattern already added on the pie-trader side (`ui/server/ai/llmGateway.ts`'s `OwnGenAiProviderAdapter`) for consistency across both repos |
+| Provider-neutral model interface (`ModelProvider`) | IMPLEMENTED | `src/pie_genai/llm/providers/base.py` — includes a default `health()` probe (overridable); two concrete providers now exist, so "provider-neutral" is proven by a second real implementation, not just a contract |
+| Ollama provider (default, self-hosted) | IMPLEMENTED, TESTED (mocked HTTP boundary); NOT VERIFIED against a real running Ollama instance | `src/pie_genai/llm/providers/ollama.py` — real `POST /api/chat` call, real retryable/non-retryable error classification, real token counts from Ollama's own `prompt_eval_count`/`eval_count`, real `GET /api/tags` health check. `tests/unit/test_ollama_provider.py` proves the request/response/error shapes against a mocked HTTP boundary (`respx`); no GPU/Ollama binary exists in this sandbox, so a live round-trip has not been exercised — see "Recommended next iteration" below |
+| Own-GenAI provider adapter | SCAFFOLD | `src/pie_genai/llm/providers/own_genai.py` — still an unimplemented placeholder for a future custom in-house model/service, distinct from choosing a self-hosted inference engine (Ollama, above); kept but no longer the default provider |
 | Model registry + task-based routing | IMPLEMENTED, TESTED | `src/pie_genai/llm/registry.py`, `router.py` — one model registered (`pie-genai-core`); the tie-break rule for >1 candidate is untested because there is no second model yet |
 | Model gateway: retry (non-retryable errors skip retry), backoff, usage tracking | IMPLEMENTED, TESTED | `src/pie_genai/llm/gateway.py`, `usage.py` — retry/backoff proven against a test-double provider (`tests/unit/test_llm_gateway.py`), not against a second real model |
 | Model gateway: streaming, circuit breaker, real multi-provider fallback, rate limiting | FUTURE PLAN | Section 7.2's full list — needs a second real provider to implement honestly |
@@ -98,18 +99,24 @@ this."
 
 ## Recommended next iteration
 
-With Stages A, B (foundation), C (model gateway), D (conversation/run
+With Stages A, B (foundation), C (model gateway — now backed by a real
+self-hosted provider, Ollama, not just a skeleton), D (conversation/run
 lifecycle), E (tools/agents) and G (read-only PIE Trader integration) now
 in place, a market question gets a real, data-backed answer end to end —
 proven by this session's own HTTP smoke test (`curl` a `banknifty`
 question → `status: "completed"`, a real synthesized answer or an honest
 "unavailable" if the gateway can't be reached — never a fabricated one).
 
-The highest-leverage next step is now a **live round-trip**: boot a real
-`backend/pietrader-gateway` (Postgres+Redis+Kafka) and re-run
-`tests/unit/test_market_intelligence_agent.py`'s scenarios against it
-instead of a mock, to retire the one "NOT VERIFIED" item Stage G left
-open. After that, Stage F (RAG/memory) or a second specialist agent
+There are now two "NOT VERIFIED, live round-trip" items, not one: (1) a
+real `backend/pietrader-gateway` (Postgres+Redis+Kafka) for
+`tests/unit/test_market_intelligence_agent.py`'s scenarios, and (2) a
+real running `ollama serve` instance for `tests/unit/test_ollama_provider.py`'s
+scenarios and for `/api/v1/models/health` to report `reachable: true`.
+Neither exists in this sandbox; this session's own `/api/v1/conversations`
+→ `/messages` → `/runs/{id}` smoke test against the real app confirmed
+the expected *honest failure* path instead (`"Could not reach Ollama at
+http://localhost:11434 — is \`ollama serve\` running?"`, `retryable`).
+After either is verified, Stage F (RAG/memory) or a second specialist agent
 (Section 6's Options Intelligence or Portfolio/Capital Agent, reusing the
 same `dashboard`/`positions` tools already registered but unused) are
 the natural next additions — either is additive to what exists, not a

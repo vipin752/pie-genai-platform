@@ -19,7 +19,9 @@ def test_readiness_reports_unconfigured_dependencies():
     body = resp.json()
     assert body["checks"]["database"] == "not_configured"
     assert body["checks"]["redis"] == "not_configured"
-    assert body["checks"]["llm_gateway"] == "not_configured"
+    # Ollama always has a default base_url — GET /api/v1/models/health is
+    # the real reachability check, not this one.
+    assert body["checks"]["llm_gateway"] == "unchecked"
 
 
 def test_version_reports_app_name_and_version():
