@@ -37,7 +37,9 @@ def test_capabilities_reflect_only_what_actually_exists():
     # Every capability flag must stay false until the feature is actually
     # implemented and tested — this test is the guardrail against a flag
     # being flipped to true to match the product vision rather than reality.
-    assert body["conversations"] is False
+    # The conversation/run lifecycle exists now (Stage D) - it does not
+    # mean messages get a real answer; see the route's own comment.
+    assert body["conversations"] is True
     assert body["agents"] is False
     assert body["rag"] is False
     assert body["memory"] is False

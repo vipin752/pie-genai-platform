@@ -45,7 +45,12 @@ async def version(settings: Settings = Depends(get_settings)) -> VersionResponse
 @router.get("/capabilities", response_model=CapabilitiesResponse)
 async def capabilities(settings: Settings = Depends(get_settings)) -> CapabilitiesResponse:
     return CapabilitiesResponse(
-        conversations=False,
+        # True = conversation/message/run lifecycle exists and is wired to
+        # the model gateway end to end. It does NOT mean a submitted
+        # message gets a real answer - the one configured model is an
+        # unimplemented skeleton, so every run fails today. See
+        # docs/architecture/SYSTEM_ARCHITECTURE.md.
+        conversations=True,
         agents=False,
         rag=False,
         memory=False,
