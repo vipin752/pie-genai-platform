@@ -45,11 +45,24 @@ async def version(settings: Settings = Depends(get_settings)) -> VersionResponse
 @router.get("/capabilities", response_model=CapabilitiesResponse)
 async def capabilities(settings: Settings = Depends(get_settings)) -> CapabilitiesResponse:
     return CapabilitiesResponse(
-        conversations=False,
-        agents=False,
+        # True = conversation/message/run lifecycle exists and is wired to
+        # the model gateway end to end. It does NOT mean a submitted
+        # message gets a real answer - the one configured model is an
+        # unimplemented skeleton, so every run fails today. See
+        # docs/architecture/SYSTEM_ARCHITECTURE.md.
+        conversations=True,
+        # One real agent (Market Intelligence) exists, wired to 2 real
+        # tools. "True" means the agent/tool framework is real and
+        # callable end to end - not that every answer succeeds (a tool
+        # call still fails honestly if the gateway is unreachable).
+        agents=True,
         rag=False,
         memory=False,
         workflows=False,
-        pie_trader_integration=False,
+        # True = the read-only integration adapter exists (trade-card/
+        # dashboard/positions/risk). It says nothing about whether the
+        # gateway is actually reachable right now — see
+        # GET /api/v1/integrations/pie-trader/health for that.
+        pie_trader_integration=True,
         llm_gateway_configured=bool(settings.own_genai_endpoint),
     )

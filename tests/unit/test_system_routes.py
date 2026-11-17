@@ -30,16 +30,20 @@ def test_version_reports_app_name_and_version():
     assert body["version"] == "0.1.0"
 
 
-def test_capabilities_are_all_false_until_implemented():
+def test_capabilities_reflect_only_what_actually_exists():
     resp = _client().get("/api/v1/capabilities")
     assert resp.status_code == 200
     body = resp.json()
     # Every capability flag must stay false until the feature is actually
     # implemented and tested — this test is the guardrail against a flag
     # being flipped to true to match the product vision rather than reality.
-    assert body["conversations"] is False
-    assert body["agents"] is False
+    # The conversation/run lifecycle exists now (Stage D) - it does not
+    # mean messages get a real answer; see the route's own comment.
+    assert body["conversations"] is True
+    # The agent/tool framework exists now too (Stage E).
+    assert body["agents"] is True
     assert body["rag"] is False
     assert body["memory"] is False
     assert body["workflows"] is False
-    assert body["pie_trader_integration"] is False
+    # The read-only PIE Trader integration adapter does exist now (Stage G).
+    assert body["pie_trader_integration"] is True
