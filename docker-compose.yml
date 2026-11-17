@@ -1,0 +1,23 @@
+# Local development only. No service here is read by the application yet
+# (see docs/architecture/SYSTEM_ARCHITECTURE.md) — this just gets Postgres
+# and Redis running so persistence work in a later stage has something
+# real to connect to, instead of inventing connection details later.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: pie_genai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in your .env — never commit a real one}
+      POSTGRES_DB: pie_genai
+    ports:
+      - "5433:5432"
+    volumes:
+      - pie_genai_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+
+volumes:
+  pie_genai_postgres_data:
