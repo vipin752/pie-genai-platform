@@ -3,18 +3,21 @@
 Open-source Agentic AI, RAG and Intelligence Platform for PIE Trader.
 
 **Read [`docs/architecture/SYSTEM_ARCHITECTURE.md`](docs/architecture/SYSTEM_ARCHITECTURE.md)
-first.** This is Stage A/B of a large, staged build — a FastAPI skeleton,
-config loading, health/readiness/version APIs and a provider-neutral model
-gateway with one (unimplemented) provider adapter. Conversations, agents,
-RAG, memory, workflows and PIE Trader integration are not built yet; that
-document says exactly what exists and what doesn't, with evidence.
+first.** Stages A, B (foundation), C (model gateway — Ollama, self-hosted,
+is the real default provider), D (conversation/run lifecycle), E
+(tools/agents) and G (read-only PIE Trader integration) are built and
+tested. RAG, memory, multimodal and the durable workflow engine are not;
+that document says exactly what exists and what doesn't, with evidence.
 
 This is a separate repository from
 [`pie-trader`](https://github.com/vipin752/pie-trader) on purpose — see
-Section 3 of the governing build prompt. GenAI will consume PIE Trader
-capabilities through authenticated APIs once that integration exists; it
-will never own trading, risk or capital logic, and PIE Trader remains the
-sole source of truth for all of that.
+Section 3 of the governing build prompt. GenAI consumes PIE Trader's
+read-only capabilities (trade-card, dashboard, positions, risk) through
+`src/pie_genai/integrations/pie_trader/`; it never owns trading, risk or
+capital logic, and PIE Trader remains the sole source of truth for all
+of that. For running this alongside the full PIE Trader stack (gateway,
+`ui/`, Keycloak), see `pie-trader`'s
+[`docs/LOCAL_SETUP.md`](https://github.com/vipin752/pie-trader/blob/development/docs/LOCAL_SETUP.md).
 
 ## Run locally
 
