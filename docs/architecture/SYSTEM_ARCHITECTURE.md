@@ -1,15 +1,16 @@
 # PIE GenAI Platform — System Architecture & Honest Status
 
 This repository implements the master build prompt's **Stage A, Stage B,
-and Stage G** (read-only PIE Trader integration — see
-[`docs/integration/PIE_TRADER_INTEGRATION.md`](../integration/PIE_TRADER_INTEGRATION.md)),
-plus the start of **Stage C** (one provider adapter, no routing yet).
-Stages D, E, F, H, I, J — conversation/orchestration, agents, RAG, memory,
-multimodal, workflows, frontend integration, evaluation, production
-hardening — are **not implemented**. This document says so plainly rather
-than describing them as if they existed, per the master prompt's own rule:
-never claim a feature is production-ready merely because its code exists,
-and never classify a feature's status beyond the evidence.
+Stage G** (read-only PIE Trader integration — see
+[`docs/integration/PIE_TRADER_INTEGRATION.md`](../integration/PIE_TRADER_INTEGRATION.md))
+and **Stage C** (model registry, task-based routing, retry/backoff,
+usage tracking — one real provider only). Stages D, E, F, H, I, J —
+conversation/orchestration, agents, RAG, memory, multimodal, workflows,
+frontend integration, evaluation, production hardening — are **not
+implemented**. This document says so plainly rather than describing them
+as if they existed, per the master prompt's own rule: never claim a
+feature is production-ready merely because its code exists, and never
+classify a feature's status beyond the evidence.
 
 Status labels below use the master prompt's own taxonomy (Section 6):
 IMPLEMENTED, TESTED, PARTIALLY IMPLEMENTED, SCAFFOLD, DOCUMENTED ONLY,
@@ -24,7 +25,10 @@ FUTURE PLAN, BLOCKED, NOT VERIFIED.
 | Config loading (env-driven, no hardcoded secrets) | IMPLEMENTED, TESTED | `src/pie_genai/config.py` |
 | Provider-neutral model interface (`ModelProvider`) | IMPLEMENTED | `src/pie_genai/llm/providers/base.py` — only one concrete provider exists so far, so "provider-neutral" is a contract, not yet proven by a second real implementation |
 | Own-GenAI provider adapter | SCAFFOLD | `src/pie_genai/llm/providers/own_genai.py` — fails loudly by design; mirrors the same pattern already added on the pie-trader side (`ui/server/ai/llmGateway.ts`'s `OwnGenAiProviderAdapter`) for consistency across both repos |
-| Model gateway (single provider, no routing/retry/fallback/streaming) | PARTIALLY IMPLEMENTED | `src/pie_genai/llm/gateway.py` — Section 7's full model router, circuit breaker, usage tracking and streaming are FUTURE PLAN |
+| Model registry + task-based routing | IMPLEMENTED, TESTED | `src/pie_genai/llm/registry.py`, `router.py` — one model registered (`pie-genai-core`); the tie-break rule for >1 candidate is untested because there is no second model yet |
+| Model gateway: retry (non-retryable errors skip retry), backoff, usage tracking | IMPLEMENTED, TESTED | `src/pie_genai/llm/gateway.py`, `usage.py` — retry/backoff proven against a test-double provider (`tests/unit/test_llm_gateway.py`), not against a second real model |
+| Model gateway: streaming, circuit breaker, real multi-provider fallback, rate limiting | FUTURE PLAN | Section 7.2's full list — needs a second real provider to implement honestly |
+| Model APIs (`/api/v1/models`, `/health`, `/usage`) | IMPLEMENTED, TESTED | `src/pie_genai/api/routes/models.py` — Section 14.4 |
 | Local dev Postgres/Redis (docker-compose) | SCAFFOLD | `docker-compose.yml` — nothing in the app connects to either yet |
 | CI (pytest on push/PR) | IMPLEMENTED | `.github/workflows/ci.yml` |
 | PIE Trader read-only integration (trade-card, dashboard, positions, risk) | IMPLEMENTED, TESTED (mocked contract) | `src/pie_genai/integrations/pie_trader/`, `src/pie_genai/api/routes/pie_trader.py` — see `docs/integration/PIE_TRADER_INTEGRATION.md` for exactly what's verified vs. not |
