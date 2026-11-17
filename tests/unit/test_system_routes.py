@@ -30,7 +30,7 @@ def test_version_reports_app_name_and_version():
     assert body["version"] == "0.1.0"
 
 
-def test_capabilities_are_all_false_until_implemented():
+def test_capabilities_reflect_only_what_actually_exists():
     resp = _client().get("/api/v1/capabilities")
     assert resp.status_code == 200
     body = resp.json()
@@ -42,4 +42,5 @@ def test_capabilities_are_all_false_until_implemented():
     assert body["rag"] is False
     assert body["memory"] is False
     assert body["workflows"] is False
-    assert body["pie_trader_integration"] is False
+    # The read-only PIE Trader integration adapter does exist now (Stage G).
+    assert body["pie_trader_integration"] is True

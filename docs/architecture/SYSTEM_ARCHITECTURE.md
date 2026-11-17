@@ -1,14 +1,15 @@
 # PIE GenAI Platform — System Architecture & Honest Status
 
-This repository implements the master build prompt's **Stage A and Stage B**,
-and the very start of **Stage C** (one provider adapter, no routing yet).
-Stages D through J — conversation/orchestration, agents, RAG, memory,
-multimodal, workflows, PIE Trader integration, frontend integration,
-evaluation, production hardening — are **not implemented**. This document
-says so plainly rather than describing them as if they existed, per the
-master prompt's own rule: never claim a feature is production-ready merely
-because its code exists, and never classify a feature's status beyond the
-evidence.
+This repository implements the master build prompt's **Stage A, Stage B,
+and Stage G** (read-only PIE Trader integration — see
+[`docs/integration/PIE_TRADER_INTEGRATION.md`](../integration/PIE_TRADER_INTEGRATION.md)),
+plus the start of **Stage C** (one provider adapter, no routing yet).
+Stages D, E, F, H, I, J — conversation/orchestration, agents, RAG, memory,
+multimodal, workflows, frontend integration, evaluation, production
+hardening — are **not implemented**. This document says so plainly rather
+than describing them as if they existed, per the master prompt's own rule:
+never claim a feature is production-ready merely because its code exists,
+and never classify a feature's status beyond the evidence.
 
 Status labels below use the master prompt's own taxonomy (Section 6):
 IMPLEMENTED, TESTED, PARTIALLY IMPLEMENTED, SCAFFOLD, DOCUMENTED ONLY,
@@ -26,6 +27,7 @@ FUTURE PLAN, BLOCKED, NOT VERIFIED.
 | Model gateway (single provider, no routing/retry/fallback/streaming) | PARTIALLY IMPLEMENTED | `src/pie_genai/llm/gateway.py` — Section 7's full model router, circuit breaker, usage tracking and streaming are FUTURE PLAN |
 | Local dev Postgres/Redis (docker-compose) | SCAFFOLD | `docker-compose.yml` — nothing in the app connects to either yet |
 | CI (pytest on push/PR) | IMPLEMENTED | `.github/workflows/ci.yml` |
+| PIE Trader read-only integration (trade-card, dashboard, positions, risk) | IMPLEMENTED, TESTED (mocked contract) | `src/pie_genai/integrations/pie_trader/`, `src/pie_genai/api/routes/pie_trader.py` — see `docs/integration/PIE_TRADER_INTEGRATION.md` for exactly what's verified vs. not |
 
 ## What is explicitly not implemented (FUTURE PLAN)
 
@@ -40,8 +42,10 @@ Everything else in the master prompt, including but not limited to:
 - Multimodal adapters — image/audio/video (Section 10)
 - Deep research workflows (Section 11)
 - Durable workflow engine (Section 13)
-- PIE Trader integration adapters of any kind (Section 18) — this repo
-  does not call `backend/pietrader-gateway` or `analytics/` yet
+- PIE Trader integration beyond the 4 read-only endpoints above (Section
+  18) — nothing calls `analytics/` (Python) yet, and the gateway's write
+  endpoints are intentionally never called (see
+  `docs/integration/PIE_TRADER_INTEGRATION.md`'s scope boundary)
 - Frontend/UI integration (Section 21) — `pie-trader/ui` is a separate
   repository and has not been wired to this one
 - Evaluation framework, feedback APIs, product-intelligence persistence

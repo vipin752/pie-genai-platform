@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from pie_genai import __version__
+from pie_genai.api.routes.pie_trader import router as pie_trader_router
 from pie_genai.api.routes.system import router as system_router
 
 
@@ -15,6 +16,7 @@ def create_app() -> FastAPI:
         "implemented versus planned.",
     )
     app.include_router(system_router)
+    app.include_router(pie_trader_router)
     return app
 
 

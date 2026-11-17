@@ -50,6 +50,10 @@ async def capabilities(settings: Settings = Depends(get_settings)) -> Capabiliti
         rag=False,
         memory=False,
         workflows=False,
-        pie_trader_integration=False,
+        # True = the read-only integration adapter exists (trade-card/
+        # dashboard/positions/risk). It says nothing about whether the
+        # gateway is actually reachable right now — see
+        # GET /api/v1/integrations/pie-trader/health for that.
+        pie_trader_integration=True,
         llm_gateway_configured=bool(settings.own_genai_endpoint),
     )
