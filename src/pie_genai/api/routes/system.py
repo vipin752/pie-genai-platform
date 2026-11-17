@@ -51,7 +51,11 @@ async def capabilities(settings: Settings = Depends(get_settings)) -> Capabiliti
         # unimplemented skeleton, so every run fails today. See
         # docs/architecture/SYSTEM_ARCHITECTURE.md.
         conversations=True,
-        agents=False,
+        # One real agent (Market Intelligence) exists, wired to 2 real
+        # tools. "True" means the agent/tool framework is real and
+        # callable end to end - not that every answer succeeds (a tool
+        # call still fails honestly if the gateway is unreachable).
+        agents=True,
         rag=False,
         memory=False,
         workflows=False,

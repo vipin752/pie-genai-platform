@@ -40,7 +40,8 @@ def test_capabilities_reflect_only_what_actually_exists():
     # The conversation/run lifecycle exists now (Stage D) - it does not
     # mean messages get a real answer; see the route's own comment.
     assert body["conversations"] is True
-    assert body["agents"] is False
+    # The agent/tool framework exists now too (Stage E).
+    assert body["agents"] is True
     assert body["rag"] is False
     assert body["memory"] is False
     assert body["workflows"] is False

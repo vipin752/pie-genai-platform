@@ -4,15 +4,19 @@ This repository implements the master build prompt's **Stage A, Stage B,
 Stage G** (read-only PIE Trader integration — see
 [`docs/integration/PIE_TRADER_INTEGRATION.md`](../integration/PIE_TRADER_INTEGRATION.md)),
 **Stage C** (model registry, task-based routing, retry/backoff, usage
-tracking — one real provider only), and the start of **Stage D**
-(conversation/message/run lifecycle, a heuristic intent classifier, a
-one-step planner, an orchestrator — see "Stage D" below for exactly what
-that does and doesn't prove). Stages E, F, H, I, J — agents, RAG, memory,
-multimodal, workflows, frontend integration, evaluation, production
-hardening — are **not implemented**. This document says so plainly rather
-than describing them as if they existed, per the master prompt's own rule:
-never claim a feature is production-ready merely because its code exists,
-and never classify a feature's status beyond the evidence.
+tracking — one real provider only), **Stage D** (conversation/message/run
+lifecycle, a heuristic intent classifier, a one-step planner, an
+orchestrator), and **Stage E** (Tool Registry, Agent Registry, and one
+real specialist agent — see
+[`docs/agents/AGENT_CATALOG.md`](../agents/AGENT_CATALOG.md),
+[`TOOL_CATALOG.md`](../agents/TOOL_CATALOG.md) and
+[`AGENT_PERMISSIONS.md`](../agents/AGENT_PERMISSIONS.md)). Stages F, H, I,
+J — RAG, memory, multimodal, workflows, frontend integration, evaluation,
+production hardening — are **not implemented**. This document says so
+plainly rather than describing them as if they existed, per the master
+prompt's own rule: never claim a feature is production-ready merely
+because its code exists, and never classify a feature's status beyond
+the evidence.
 
 Status labels below use the master prompt's own taxonomy (Section 6):
 IMPLEMENTED, TESTED, PARTIALLY IMPLEMENTED, SCAFFOLD, DOCUMENTED ONLY,
@@ -38,6 +42,11 @@ FUTURE PLAN, BLOCKED, NOT VERIFIED.
 | Task planner | SCAFFOLD, TESTED | `src/pie_genai/core/planner.py` — always a single `call_model` step; Section 5.3's full plan shape (multi-step, parallel, approval-gated) needs Stage E to mean anything |
 | Orchestrator | PARTIALLY IMPLEMENTED, TESTED | `src/pie_genai/core/orchestrator.py` — proves the full accepted→running→completed/failed/cancelled lifecycle against both a successful test-double model (`tests/unit/test_orchestrator.py`) and the real default (currently-failing) model. Cannot yet "coordinate specialist agents" (Section 5.1) — there are no agents (Stage E) |
 | Cancellation | SCAFFOLD, TESTED | The mechanism (a flag the orchestrator checks once) is real and tested for the terminal-run-409 case; there is no long-running step yet for an in-flight cancel to actually interrupt |
+| Tool Registry + permission enforcement + audit log | IMPLEMENTED, TESTED | `src/pie_genai/tools/` — `ToolRegistry.register()` hard-rejects `PermissionLevel.FINANCIAL_ACTION` in code (Section 19/26), not just by convention. See `docs/agents/TOOL_CATALOG.md` |
+| Agent Registry + runtime | IMPLEMENTED, TESTED | `src/pie_genai/agents/` — one agent registered |
+| Market Intelligence Agent (Section 6.3) | IMPLEMENTED, TESTED | `src/pie_genai/agents/market_intelligence_agent.py` — calls the real `trade_card`/`risk_state` tools and synthesizes a plain-text answer; proven against both a mocked successful gateway (real numbers in the answer) and an unreachable one (honest failure in the answer, never fabricated data). "Synthesis" is deterministic templating, not model-generated prose — see `docs/agents/AGENT_CATALOG.md` |
+| Agent APIs (`/api/v1/agents`, `/{id}`, `/{id}/health`) | IMPLEMENTED, TESTED | `src/pie_genai/api/routes/agents.py` — Section 14.3 |
+| Orchestrator routing a question to the agent vs. the model | IMPLEMENTED, TESTED | `core/planner.py` picks `call_agent` when the intent is `market_analysis` and the Market Intelligence Agent is registered, else falls back to `call_model` — real HTTP proof in `tests/unit/test_agents_routes.py` |
 | Local dev Postgres/Redis (docker-compose) | SCAFFOLD | `docker-compose.yml` — nothing in the app connects to either yet |
 | CI (pytest on push/PR) | IMPLEMENTED | `.github/workflows/ci.yml` |
 | PIE Trader read-only integration (trade-card, dashboard, positions, risk) | IMPLEMENTED, TESTED (mocked contract) | `src/pie_genai/integrations/pie_trader/`, `src/pie_genai/api/routes/pie_trader.py` — see `docs/integration/PIE_TRADER_INTEGRATION.md` for exactly what's verified vs. not |
@@ -46,8 +55,10 @@ FUTURE PLAN, BLOCKED, NOT VERIFIED.
 
 Everything else in the master prompt, including but not limited to:
 
-- Agent registry and runtime, any specialist agent (Section 5.4, Section 6)
-- Tool registry and tool execution policy engine (Section 12)
+- Any specialist agent other than Market Intelligence (Section 6.1, 6.2,
+  6.5–6.10 — Personal Assistant, Research, Strategy Research, Portfolio/
+  Capital, Product Intelligence, Product Development, Data Analyst,
+  Document Intelligence)
 - RAG: ingestion, chunking, embeddings, retrieval, reranking, citations (Section 8)
 - Memory service (Section 9)
 - Multimodal adapters — image/audio/video (Section 10)
@@ -88,17 +99,21 @@ this."
 ## Recommended next iteration
 
 With Stages A, B (foundation), C (model gateway), D (conversation/run
-lifecycle) and G (read-only PIE Trader integration) now in place, the
-highest-leverage next step is **Stage E (Tool Registry + Agent Registry)**:
-wrap the Stage G `PieTraderClient` calls as registered, permissioned
-`Tool` objects, and give the orchestrator one real specialist agent (the
-Market Intelligence Agent, Section 6.3) that can actually call
-`trade_card`/`dashboard`/`risk` as tools instead of the orchestrator's
-current single hardcoded `call_model` step. That is the point at which a
-user's message about NIFTY can be answered with real market data instead
-of only ever reaching a "model not configured" failure — doing it before
-a real model exists would mean building a tool-calling path nothing can
-actually call yet.
+lifecycle), E (tools/agents) and G (read-only PIE Trader integration) now
+in place, a market question gets a real, data-backed answer end to end —
+proven by this session's own HTTP smoke test (`curl` a `banknifty`
+question → `status: "completed"`, a real synthesized answer or an honest
+"unavailable" if the gateway can't be reached — never a fabricated one).
+
+The highest-leverage next step is now a **live round-trip**: boot a real
+`backend/pietrader-gateway` (Postgres+Redis+Kafka) and re-run
+`tests/unit/test_market_intelligence_agent.py`'s scenarios against it
+instead of a mock, to retire the one "NOT VERIFIED" item Stage G left
+open. After that, Stage F (RAG/memory) or a second specialist agent
+(Section 6's Options Intelligence or Portfolio/Capital Agent, reusing the
+same `dashboard`/`positions` tools already registered but unused) are
+the natural next additions — either is additive to what exists, not a
+rewrite.
 
 Finishing Stage B's still-open items (structured logging, a standardized
 Section 17 error envelope, a real OpenAPI contract file checked into

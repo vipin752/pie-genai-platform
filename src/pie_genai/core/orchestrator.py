@@ -1,19 +1,19 @@
 """AI Orchestrator — Section 5.1.
 
-SCAFFOLD, honestly: classifies intent (heuristic), builds a one-step plan,
-and calls the model gateway. There is no agent layer yet (Stage E), so
-"coordinate specialist agents" is not something this can do. What it does
-prove, for real: a message in, a Run through its full accepted -> running
--> completed|failed lifecycle, events recorded at every step, and - since
-the one configured model is an unimplemented skeleton - a message today
-always ends in a FAILED run with the real error surfaced. That is the
-honest result of calling an unconfigured provider, not a bug to hide.
+Classifies intent (heuristic), builds a one-step plan, and executes it -
+either a registered agent (if one declares the intent, Stage E) or the
+model gateway directly (Stage C, still an unimplemented skeleton). Proves
+a message's full accepted -> running -> completed|failed|cancelled
+lifecycle for real in either case; "coordinate specialist agents" beyond
+selecting exactly one is still FUTURE PLAN until more than one agent
+exists to coordinate.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from pie_genai.agents.registry import AgentRegistry
 from pie_genai.conversations.models import Message, MessageRole, Run, RunStatus
 from pie_genai.conversations.store import ConversationStore
 from pie_genai.core.intent import classify_intent
@@ -23,7 +23,7 @@ from pie_genai.llm.providers.base import ModelProviderError, ModelRequest
 
 # Mirrors the immutable security header already in pie-trader/ui's
 # llmGateway.ts, so both repositories' orchestration layers hold the same
-# non-negotiables regardless of which provider eventually answers.
+# non-negotiables regardless of which provider or agent eventually answers.
 ORCHESTRATOR_SYSTEM_POLICY = "\n".join(
     [
         "IMMUTABLE PLATFORM POLICY:",
@@ -40,9 +40,15 @@ class RunAlreadyTerminalError(RuntimeError):
 
 
 class Orchestrator:
-    def __init__(self, store: ConversationStore, gateway: LlmGateway) -> None:
+    def __init__(
+        self,
+        store: ConversationStore,
+        gateway: LlmGateway,
+        agent_registry: AgentRegistry | None = None,
+    ) -> None:
         self._store = store
         self._gateway = gateway
+        self._agent_registry = agent_registry or AgentRegistry()
 
     async def handle_user_message(self, conversation_id: str, text: str) -> Run:
         user_message = Message(conversation_id=conversation_id, role=MessageRole.USER, content=text)
@@ -61,7 +67,7 @@ class Orchestrator:
             {"intent": intent_result.intent, "confidence": intent_result.confidence},
         )
 
-        plan = build_plan(intent_result)
+        plan = build_plan(intent_result, self._agent_registry.ids())
         run.emit("plan.created", {"steps": [s.kind for s in plan.steps]})
 
         if run.cancel_requested:
@@ -72,10 +78,20 @@ class Orchestrator:
             return run
 
         step = plan.steps[0]
-        run.emit("agent.started", {"step": step.kind})
+        if step.kind == "call_agent":
+            await self._run_agent_step(run, step.agent_id, text, conversation_id)
+        else:
+            await self._run_model_step(run, step.task_type, text, conversation_id)
+
+        run.completed_at = datetime.now(timezone.utc)
+        self._store.save_run(run)
+        return run
+
+    async def _run_model_step(self, run: Run, task_type: str, text: str, conversation_id: str) -> None:
+        run.emit("agent.started", {"step": "call_model"})
         try:
             response = await self._gateway.execute(
-                step.task_type,
+                task_type,
                 ModelRequest(model="", system_instruction=ORCHESTRATOR_SYSTEM_POLICY, prompt=text),
             )
             assistant_message = Message(
@@ -91,19 +107,47 @@ class Orchestrator:
             run.error = str(exc)
             run.emit("run.failed", {"error": str(exc)})
 
-        run.completed_at = datetime.now(timezone.utc)
-        self._store.save_run(run)
-        return run
+    async def _run_agent_step(self, run: Run, agent_id: str, text: str, conversation_id: str) -> None:
+        run.emit("agent.started", {"agent_id": agent_id})
+        agent = self._agent_registry.get(agent_id)
+        if agent is None:
+            run.status = RunStatus.FAILED
+            run.error = f"agent {agent_id!r} is not registered"
+            run.emit("run.failed", {"error": run.error})
+            return
+
+        result = await agent.run(text)
+
+        for tool_call in result.tool_calls:
+            event_type = "tool.completed" if tool_call.success else "tool.failed"
+            run.emit(
+                event_type,
+                {
+                    "tool_id": tool_call.tool_id,
+                    "permitted": tool_call.permitted,
+                    "duration_ms": tool_call.duration_ms,
+                    "error": tool_call.error,
+                    "reason_if_denied": tool_call.reason_if_denied,
+                },
+            )
+
+        assistant_message = Message(
+            conversation_id=conversation_id, role=MessageRole.ASSISTANT, content=result.text
+        )
+        self._store.add_message(conversation_id, assistant_message)
+        run.result_text = result.text
+        run.status = RunStatus.COMPLETED
+        run.emit("response.completed", {"message_id": assistant_message.id})
+        run.emit("run.completed", {})
 
     def cancel(self, run_id: str) -> Run:
         run = self._store.get_run(run_id)
         if run.status in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED):
             raise RunAlreadyTerminalError(run.id)
-        # Today's one step (a single model call) completes or fails
-        # near-instantly, so this flag has nothing to interrupt in
-        # practice yet. It and handle_user_message's check for it exist
-        # so a real long-running step (Stage E/F) has something to
-        # cooperate with already, instead of bolting cancellation on later.
+        # Today's one step completes or fails near-instantly, so this flag
+        # has nothing to interrupt in practice yet. It and the check in
+        # handle_user_message exist so a real long-running step (more
+        # agents/tools, Stage F) has something to cooperate with already.
         run.cancel_requested = True
         self._store.save_run(run)
         return run
